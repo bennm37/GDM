@@ -79,10 +79,22 @@ class GDM(object):
         # np.fill_diagonal(self.R,-np.sum(self.R,axis=0))
         return self.R
 
-##TODO make analysis class and initialise it 
-# class Analsyis(object):
-#     def __init__(self,data):
-#         self.data = data
+
+class Analsyis(object):
+    def __init__(self,folder_name,params):
+        self.n_sites = params['n_sites']
+        self.T = params['T']
+        self.n_steps = 100
+        self.E_0 = params['E_0']
+        self.sigma = params['sigma']
+        self.nu_0 = params['nu_0']
+        self.gamma = params['gamma']
+        self.K_B = params['K_B']
+        self.load_data(folder_name)
+
+    def load_data(self,folder_name):
+        pass
+
     def plot(self,ax):
         ax.scatter(self.sites[:,0],self.sites[:,1],c="k",s=100)
         e_loc = self.sites[self.electrons.astype(bool)]
