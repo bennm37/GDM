@@ -3,6 +3,7 @@ import numpy.linalg as lag
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import matplotlib.cm as cm
+import pandas as pd
 
 class GDM(object):
     def __init__(self,params):
@@ -93,7 +94,10 @@ class Analsyis(object):
         self.load_data(folder_name)
 
     def load_data(self,folder_name):
-        pass
+        self.sites = pd.read_csv(folder_name/'sites.csv')
+        self.energies = pd.read_csv(folder_name/'energis.csv')
+        self.time_data = pd.read_csv(folder_name/'time_data.csv')
+        self.electron_data = pd.read_csv(folder_name/'electron_data.csv')
 
     def plot(self,ax):
         ax.scatter(self.sites[:,0],self.sites[:,1],c="k",s=100)
