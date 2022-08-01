@@ -9,6 +9,7 @@ class GDM(object):
     def __init__(self,params):
         """Sets up a system of n uniformly distributed sites"""
         self.n_sites = params['n_sites']
+        self.n_elec = params['n_elec']
         self.T = params['T']
         self.n_steps = 100
         self.E_0 = params['E_0']
@@ -25,38 +26,41 @@ class GDM(object):
         self.box_width = 1
         self.sites = np.random.uniform(-self.box_width/2,self.box_width/2,(self.n_sites,2))
         self.energies = np.random.normal(self.E_0,self.sigma,self.n_sites)
-        # self.electrons = np.random.binomial(1,0.2,self.n_sites).astype(int)
-        self.electrons = np.zeros(self.n_sites)
-        self.electrons[0] = 1
-
+        self.electrons = np.random.choice(range(self.n_sites),self.n_elec,False)
+        self.times = np.zeros(self.n_elec)
         # print(f"Sites is {self.sites}")
         # print(f"energies is {self.energies}")
         # print(f"electrons is {self.electrons}")
     
+
     def generate_data(self):
-        """Currently using single hop to update."""
-        self.electron_data = np.zeros((self.n_steps,self.n_sites))
-        self.time_data = np.zeros(self.n_steps)
-        self.time = 0
-        self.electron_data[0] = self.electrons
-        for step in range(1,self.n_steps):
-            self.single_hop()
-            self.electron_data[step] = self.electrons
-            self.time_data[step] = self.time
+        """Generates hop and cumilative time data for each electron, 
+        according to parameter dictionary. """
+        self.electron_data = np.zeros((self.n_steps,self.n_elec))
+        self.time_data = np.zeros((self.n_steps,self.n_elec))
+        self.electron_data[0,:] = self.electrons
+        self.time_data[0,:] = self.times
+        for i in range(1,self.n_steps):
+            self.update()
+            self.electron_data[i,:] = self.electrons
+            self.time_data[i,:] = self.times+self.time_data[i-1,:]
         return self.electron_data,self.time_data
+    
+    def save_csvs(self,folder_name):
+        sites_df = pd.DataFrame(self.sites)
+        sites_df.to_csv(f'{folder_name}/sites.csv',index_label='site_no')
+        energies_df = pd.DataFrame(self.energies)
+        energies_df.to_csv(f'{folder_name}/energies.csv',index_label='site_no')
+        # electron_data_df = pd.DataFrame(self.electron_data)
+        # electron_data_df.to_csv(f'{folder_name}/electron_data.csv',index_label='hop_no')
+        # time_data_df = pd.DataFrame(self.time_data)
+        # time_data_df.to_csv(f'{folder_name}/time_data.csv',index_label='hop_no')
 
-
-    def single_hop(self):
-        """Markov Chain Style Exponential Hopping. Two potential approaches:
-        randomly pick neighbour in neighbour cube with probability V_ij/sum(V_ij)
-        and exponential time x_exp/sum(V_ij). Or racing exponential clocks."""
-        self.e_loc = np.where(self.electrons==1)
-        row = list(self.R[self.e_loc][0])
-        clocks = [np.random.exponential(1/r,1)[0] for r in row]
-        self.new_loc = np.argmin(clocks)
-        self.electrons[self.e_loc] = 0
-        self.electrons[self.new_loc] = 1
-        self.time += clocks[self.new_loc]
+    def update(self):
+        rate_rows = self.R[self.electrons,:]
+        clocks = np.random.exponential(1,rate_rows.shape)/rate_rows
+        self.electrons = np.argmin(clocks,axis=1)
+        self.times += np.min(clocks,axis=1)
     
     def get_pvec(self):
         """Generates array of pairwise vectors and distances"""
