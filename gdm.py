@@ -37,7 +37,9 @@ class GDM(object):
         rate_rows = self.R[self.electrons,:]
         clocks = np.random.exponential(1,rate_rows.shape)/rate_rows
         self.electrons = np.argmin(clocks,axis=1)
-        self.times += np.min(clocks,axis=1)
+        self.times = np.min(clocks,axis=1)
+
+        
 
     def generate_data(self,folder_name):
         """Generates hop and cumilative time data for each electron, 
@@ -48,8 +50,9 @@ class GDM(object):
         self.time_data[0,:] = self.times
         for i in range(1,self.n_steps):
             self.update()
-            self.electron_data[i,:] = self.electrons
-            self.time_data[i,:] = self.times+self.time_data[i-1,:]
+            finished = self.time_data[i-1]+self.times>self.T
+            self.electron_data[i,:] = np.where(finished,self.electron_data[i-1],self.electrons)
+            self.time_data[i,:] = np.where(finished,self.T,self.times+self.time_data[i-1,:])
         self.save_csvs(folder_name)
         return self.electron_data,self.time_data
     
@@ -151,9 +154,14 @@ class Analsyis(object):
         disp = 0.02
         e_scat = ax.scatter(e_loc[:,0],e_loc[:,1]+disp,c="green",s =20,marker="^")
         def update(i):
+            n_max = self.time_data.shape[0]
             for j in range(self.n_elec):
                 state = np.digitize(anim_t[i],self.time_data[:,j])
-                e_loc[j] = self.sites[self.electron_data[state,j].astype(int)]
+                state = min(state,n_max-1)
+                try:
+                    e_loc[j] = self.sites[self.electron_data[state,j].astype(int)]
+                except IndexError:
+                    print(f'{state=}')
             disp = np.array([0,0.02])
             e_scat.set_offsets(e_loc+disp)
             # e_scat.set_offsets(self.sites[e_loc][0],self.sites[e_loc][1])
