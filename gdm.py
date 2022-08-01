@@ -39,20 +39,22 @@ class GDM(object):
         self.electrons = np.argmin(clocks,axis=1)
         self.times = np.min(clocks,axis=1)
 
-        
-
     def generate_data(self,folder_name):
         """Generates hop and cumilative time data for each electron, 
         according to parameter dictionary. """
-        self.electron_data = np.zeros((self.n_steps,self.n_elec))
-        self.time_data = np.zeros((self.n_steps,self.n_elec))
+        self.electron_data = np.zeros((1,self.n_elec))
+        self.time_data = np.zeros((1,self.n_elec))
         self.electron_data[0,:] = self.electrons
         self.time_data[0,:] = self.times
         for i in range(1,self.n_steps):
             self.update()
             finished = self.time_data[i-1]+self.times>self.T
-            self.electron_data[i,:] = np.where(finished,self.electron_data[i-1],self.electrons)
-            self.time_data[i,:] = np.where(finished,self.T,self.times+self.time_data[i-1,:])
+            e_row = np.where(finished,self.electron_data[i-1],self.electrons).reshape(1,self.n_elec)
+            self.electron_data = np.append(self.electron_data,e_row,axis=0)
+            t_row = np.where(finished,self.T,self.times+self.time_data[i-1,:]).reshape(1,self.n_elec)
+            self.time_data = np.append(self.time_data,t_row,axis=0)
+            if np.all(self.time_data[i]==self.T):
+                break
         self.save_csvs(folder_name)
         return self.electron_data,self.time_data
     
