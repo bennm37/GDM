@@ -33,7 +33,13 @@ class GDM(object):
         # print(f"electrons is {self.electrons}")
     
 
-    def generate_data(self):
+    def update(self):
+        rate_rows = self.R[self.electrons,:]
+        clocks = np.random.exponential(1,rate_rows.shape)/rate_rows
+        self.electrons = np.argmin(clocks,axis=1)
+        self.times += np.min(clocks,axis=1)
+
+    def generate_data(self,folder_name):
         """Generates hop and cumilative time data for each electron, 
         according to parameter dictionary. """
         self.electron_data = np.zeros((self.n_steps,self.n_elec))
@@ -44,6 +50,7 @@ class GDM(object):
             self.update()
             self.electron_data[i,:] = self.electrons
             self.time_data[i,:] = self.times+self.time_data[i-1,:]
+        self.save_csvs(folder_name)
         return self.electron_data,self.time_data
     
     def save_csvs(self,folder_name):
@@ -51,16 +58,10 @@ class GDM(object):
         sites_df.to_csv(f'{folder_name}/sites.csv',index_label='site_no')
         energies_df = pd.DataFrame(self.energies)
         energies_df.to_csv(f'{folder_name}/energies.csv',index_label='site_no')
-        # electron_data_df = pd.DataFrame(self.electron_data)
-        # electron_data_df.to_csv(f'{folder_name}/electron_data.csv',index_label='hop_no')
-        # time_data_df = pd.DataFrame(self.time_data)
-        # time_data_df.to_csv(f'{folder_name}/time_data.csv',index_label='hop_no')
-
-    def update(self):
-        rate_rows = self.R[self.electrons,:]
-        clocks = np.random.exponential(1,rate_rows.shape)/rate_rows
-        self.electrons = np.argmin(clocks,axis=1)
-        self.times += np.min(clocks,axis=1)
+        electron_data_df = pd.DataFrame(self.electron_data)
+        electron_data_df.to_csv(f'{folder_name}/electron_data.csv',index_label='hop_no')
+        time_data_df = pd.DataFrame(self.time_data)
+        time_data_df.to_csv(f'{folder_name}/time_data.csv',index_label='hop_no')
     
     def get_pvec(self):
         """Generates array of pairwise vectors and distances"""
@@ -88,6 +89,7 @@ class GDM(object):
 class Analsyis(object):
     def __init__(self,folder_name,params):
         self.n_sites = params['n_sites']
+        self.n_elec = params['n_elec']
         self.T = params['T']
         self.n_steps = 100
         self.E_0 = params['E_0']
@@ -98,14 +100,19 @@ class Analsyis(object):
         self.load_data(folder_name)
 
     def load_data(self,folder_name):
-        self.sites = pd.read_csv(folder_name/'sites.csv')
-        self.energies = pd.read_csv(folder_name/'energis.csv')
-        self.time_data = pd.read_csv(folder_name/'time_data.csv')
-        self.electron_data = pd.read_csv(folder_name/'electron_data.csv')
+        """Reads in data as numpy arrays"""
+        self.sites = np.array(pd.read_csv(f'{folder_name}/sites.csv').iloc[:,1:])
+        self.energies = np.array(pd.read_csv(f'{folder_name}/energies.csv').iloc[:,1:])
+        self.time_data = np.array(pd.read_csv(f'{folder_name}/time_data.csv').iloc[:,1:])
+        self.electron_data = np.array(pd.read_csv(f'{folder_name}/electron_data.csv').iloc[:,1:])
+        # print(f'{self.sites=}')
+        # print(f'{self.energies=}')
+        # print(f'{self.time_data=}')
+        # print(f'{self.electron_data=}')
 
-    def plot(self,ax):
+    def plot(self,ax,i_hop):
         ax.scatter(self.sites[:,0],self.sites[:,1],c="k",s=100)
-        e_loc = self.sites[self.electrons.astype(bool)]
+        e_loc = self.sites[self.electron_data[i_hop].astype(int)]
         disp = 0.02
         ax.scatter(e_loc[:,0],e_loc[:,1]+disp,c="blue",s =20)
         return ax
@@ -124,30 +131,29 @@ class Analsyis(object):
         ax.scatter(e_loc[:,0],e_loc[:,1]+disp,c="red",s =20)
         return ax
 
-    def plot_energy(self,ax):
+    def plot_energy(self,ax,i_hop):
         cmap = cm.get_cmap("coolwarm")
-        self.get_rate_matrix()
         row = self.energies/np.max(self.energies)
         site_scat = ax.scatter(self.sites[:,0],self.sites[:,1],c=row,s=40,cmap='coolwarm')
-        e_loc = self.sites[self.electrons.astype(bool)]
+        # e_loc = self.sites[self.electron_data[i_hop].astype(int)]
         disp = 0.02
-        ax.scatter(e_loc[:,0],e_loc[:,1]+disp,c="red",s =20)
+        # ax.scatter(e_loc[:,0],e_loc[:,1]+disp,c="red",s =20)
         cbar = plt.colorbar(site_scat)
         return ax
     
     def animate(self,fig,ax):
         """Aniamtes a single electron hopping around."""
-        dt = 0.1
+        dt = 50
         anim_t = np.arange(0,np.max(self.time_data),dt)
         # sites_scat = ax.scatter(self.sites[:,0],self.sites[:,1],c="k",s=40)
-        site_scat = self.plot_energy(ax)
-        e_loc = self.sites[self.electrons.astype(bool)]
+        site_scat = self.plot_energy(ax,0)
+        e_loc = self.sites[self.electron_data[0].astype(int)]
         disp = 0.02
-        e_scat = ax.scatter(e_loc[:,0],e_loc[:,1]+disp,c="green",s =20)
+        e_scat = ax.scatter(e_loc[:,0],e_loc[:,1]+disp,c="green",s =20,marker="^")
         def update(i):
-            state = np.digitize(anim_t[i],self.time_data)
-            electrons = self.electron_data[state]
-            e_loc = self.sites[electrons.astype(bool)]
+            for j in range(self.n_elec):
+                state = np.digitize(anim_t[i],self.time_data[:,j])
+                e_loc[j] = self.sites[self.electron_data[state,j].astype(int)]
             disp = np.array([0,0.02])
             e_scat.set_offsets(e_loc+disp)
             # e_scat.set_offsets(self.sites[e_loc][0],self.sites[e_loc][1])

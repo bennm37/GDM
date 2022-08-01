@@ -4,7 +4,7 @@ from shutil import rmtree
 class Sim(object):
     def __init__(self,project_name,param_dicts):
         self.param_dicts = param_dicts
-        self.architect(project_name)
+        self.status = self.architect(project_name)
 
     def architect(self,project_name):
         if os.path.exists(f'data/{project_name}'):
