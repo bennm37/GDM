@@ -10,9 +10,12 @@ class Sim(object):
         if os.path.exists(f'data/{project_name}'):
             if input(f'Delete Project {project_name}? (y/n) \n') == 'y':
                 rmtree(f'data/{project_name}')
+                if os.path.exists(f'media/{project_name}'):
+                    rmtree(f'media/{project_name}')
             else:
                 return -1 
         os.mkdir(f'data/{project_name}')
+        os.mkdir(f'media/{project_name}')
         return 0
     
     def get_parameter_suffix(self):

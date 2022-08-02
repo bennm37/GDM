@@ -10,28 +10,51 @@ class GDM(object):
         """Sets up a system of n uniformly distributed sites"""
         self.n_sites = params['n_sites']
         self.n_elec = params['n_elec']
+        self.n_dim = params['n_dim']
         self.T = params['T']
         self.n_steps = 100
         self.E_0 = params['E_0']
         self.sigma = params['sigma']
         self.nu_0 = params['nu_0']
         self.gamma = params['gamma']
+        self.Temp = params['TEMP']
         self.K_B = params['K_B']
+        self.energies = np.random.normal(self.E_0,self.sigma,self.n_sites)
+        self.electrons = np.random.choice(range(self.n_sites),self.n_elec,False)
+        self.times = np.zeros(self.n_elec)
         if params['init_type']=='uniform':
             self.uniform_sites()
+        if params['init_type']=='lattice':
+            self.lattice_sites()
+            self.energies = lag.norm(self.sites,axis=1)
         self.get_rate_matrix()
         
 
     def uniform_sites(self):
+        """Uniformly distributes sites in a box of size 1^n_dim"""
         self.box_width = 1
-        self.sites = np.random.uniform(-self.box_width/2,self.box_width/2,(self.n_sites,2))
-        self.energies = np.random.normal(self.E_0,self.sigma,self.n_sites)
-        self.electrons = np.random.choice(range(self.n_sites),self.n_elec,False)
-        self.times = np.zeros(self.n_elec)
-        # print(f"Sites is {self.sites}")
-        # print(f"energies is {self.energies}")
-        # print(f"electrons is {self.electrons}")
+        self.sites = np.random.uniform(-self.box_width/2,self.box_width/2,(self.n_sites,self.n_dim))
     
+    def lattice_sites(self):
+        """Creates a lattice with floor(nth root of n_sites)^n sites,
+        and updates n_sites accordingly"""
+        if self.n_dim == 2:
+            n_x = np.floor(np.sqrt(self.n_sites)).astype(int)
+            x = np.linspace(-1,1,n_x)
+            X,Y = np.meshgrid(x,x)
+            self.sites = np.transpose([X.flatten(),Y.flatten()])
+            self.n_sites = len(self.sites)
+
+        elif self.n_dim == 3:
+            n_x = np.round(self.n_sites**(1/3),0).astype(int)
+            x = np.linspace(-1,1,n_x)
+            X,Y,Z = np.meshgrid(x,x,x)
+            self.sites = np.transpose([X.flatten(),Y.flatten(),Z.flatten()])
+            self.n_sites = len(self.sites)
+        else:
+            print('Failed to make sites: n_dim must be 2 or 3')
+
+
 
     def update(self):
         rate_rows = self.R[self.electrons,:]
@@ -76,7 +99,7 @@ class GDM(object):
     def get_envec(self):
         """Generates array of pairwise energy differences"""
         ## CHECK ORDER
-        self.envec = self.energies[:,np.newaxis]-self.energies[np.newaxis,:]
+        self.envec = self.energies[np.newaxis,:]-self.energies[:,np.newaxis]
 
 
     def get_rate_matrix(self):
@@ -84,7 +107,7 @@ class GDM(object):
         Tress Thesis"""
         self.get_envec()
         self.get_pvec()
-        self.R = self.nu_0*np.exp(-2*self.gamma*self.pdist)*np.where(self.envec>0,self.envec,1)
+        self.R = self.nu_0*np.exp(-2*self.gamma*self.pdist)*np.where(self.envec>0,np.exp(-self.envec/(self.K_B*self.Temp)),1)
         ##TODO could use markov style rate matrix here but setting diagonal to zero for now
         np.fill_diagonal(self.R,0)
         # np.fill_diagonal(self.R,-np.sum(self.R,axis=0))
@@ -147,9 +170,8 @@ class Analsyis(object):
         return ax
     
     def animate(self,fig,ax):
-        """Aniamtes a single electron hopping around."""
-        dt = 50
-        anim_t = np.arange(0,np.max(self.time_data),dt)
+        """Aniamtes a multiple electrons hopping around."""
+        anim_t = np.linspace(0,np.max(self.time_data),100)
         # sites_scat = ax.scatter(self.sites[:,0],self.sites[:,1],c="k",s=40)
         site_scat = self.plot_energy(ax,0)
         e_loc = self.sites[self.electron_data[0].astype(int)]
@@ -166,6 +188,33 @@ class Analsyis(object):
                     print(f'{state=}')
             disp = np.array([0,0.02])
             e_scat.set_offsets(e_loc+disp)
+            # e_scat.set_offsets(self.sites[e_loc][0],self.sites[e_loc][1])
+        
+        anim = animation.FuncAnimation(fig,update,len(anim_t))
+        return anim
+
+    def animate_3d(self):
+        """Aniamtes a multiple electrons hopping around in 3d."""
+        anim_t = np.linspace(0,np.max(self.time_data),100)
+        # sites_scat = ax.scatter(self.sites[:,0],self.sites[:,1],c="k",s=40)
+        # site_scat = self.plot_energy(ax,0)
+        fig = plt.figure()
+        ax = fig.add_subplot(projection='3d')
+        site_scat = ax.scatter(self.sites[:,0],self.sites[:,1],self.sites[:,2],c=self.energies,s=25,cmap="coolwarm",alpha=0.6)
+        e_loc = self.sites[self.electron_data[0].astype(int)]
+        disp = 0.02
+        e_scat = ax.scatter(e_loc[:,0],e_loc[:,1],e_loc[:,2],c="green",s =20,marker="o",depthshade=0)
+        def update(i):
+            n_max = self.time_data.shape[0]
+            for j in range(self.n_elec):
+                state = np.digitize(anim_t[i],self.time_data[:,j])
+                state = min(state,n_max-1)
+                try:
+                    e_loc[j] = self.sites[self.electron_data[state,j].astype(int)]
+                except IndexError:
+                    print(f'{state=}')
+            disp = np.array([0,0,0.02])
+            e_scat._offsets3d = e_loc.T
             # e_scat.set_offsets(self.sites[e_loc][0],self.sites[e_loc][1])
         
         anim = animation.FuncAnimation(fig,update,len(anim_t))
