@@ -1,10 +1,25 @@
 from gdm import *
 from p_dict import *
+from simulation import *
 
-gauss = GDM(sim_dict)
+folder_name = 'lattice_2d2'
 
-e_data,t_data = gauss.generate_data()
-fig,ax = plt.subplots()
-anim = gauss.animate(fig,ax)
-# ax1 = gauss.plot_energy(ax)
-plt.show()
+
+# plt.style.use('ggplot')
+# a = Analsyis(f'data/{folder_name}',lattice_3d_dict)
+# anim = a.animate_3d()
+# # plt.show()
+# anim.save(f'media/{folder_name}/test.mp4')
+
+gauss = GDM(lattice_2d_dict)
+test = Sim(f'{folder_name}',{})
+if not test.status:
+    gauss.generate_data(f'data/{folder_name}')
+    a = Analsyis(f'data/{folder_name}',lattice_2d_dict)
+    fig,ax = plt.subplots()
+    anim = a.animate(fig,ax)
+    anim.save(f'media/{folder_name}/test.mp4')
+else:
+    print('Leaving Project Unchanged')
+
+
